@@ -1,0 +1,10 @@
+tensorflow
+streamlit
+numpy
+pandas
+ipykernel
+flask
+scikit-learn
+matplotlib
+seaborn
+flask

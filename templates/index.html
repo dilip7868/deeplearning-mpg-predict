@@ -1,0 +1,278 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Predict vehicle fuel efficiency (MPG) using a Deep Learning Keras model.">
+    <title>Fuel Efficiency Predictor (MPG)</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+
+<body>
+
+    <div class="container">
+        <header>
+            <div class="subtitle-badge">Deep Learning Regression</div>
+            <h1>Vehicle Fuel Efficiency Predictor</h1>
+            <p>Input vehicle specifications to predict miles per gallon (MPG) using a trained neural network.</p>
+        </header>
+
+        <!-- Presets section -->
+        <div class="presets-container">
+            <span class="presets-label">Quick Presets:</span>
+            <button type="button" class="preset-btn" onclick="applyPreset('sedan')">seden</button>
+            <button type="button" class="preset-btn" onclick="applyPreset('suv')">suv</button>
+            <button type="button" class="preset-btn" onclick="applyPreset('sports')">sports</button>
+            <button type="button" class="preset-btn" onclick="applyPreset('compact')">compact</button>
+        </div>
+
+        <div class="dashboard">
+            <!-- Form Card -->
+            <div class="card">
+                <div class="card-title">
+                    <span>Vehicle Specifications</span>
+                </div>
+                <form action="/predict" method="post" class="grid-form" id="predictorForm">
+
+                    <div class="form-group">
+                        <label for="cylinders">Cylinders <span class="unit">(3-8)</span></label>
+                        <input type="number" name="cylinders" id="cylinders" min="3" max="8" step="1" required
+                            value="{{ cylinders if cylinders is not none else 4 }}">
+                    </div>
+
+                    <div class="form-group">
+                        <label for="displacement">Displacement <span class="unit">(cu. inches)</span></label>
+                        <input type="number" name="displacement" id="displacement" min="68" max="455" step="0.1"
+                            required value="{{ displacement if displacement is not none else 150.0 }}">
+                    </div>
+
+                    <div class="form-group">
+                        <label for="horsepower">Horsepower <span class="unit">(hp)</span></label>
+                        <input type="number" name="horsepower" id="horsepower" min="40" max="230" step="0.1" required
+                            value="{{ horsepower if horsepower is not none else 90.0 }}">
+                    </div>
+
+                    <div class="form-group">
+                        <label for="weight">Weight <span class="unit">(lbs)</span></label>
+                        <input type="number" name="weight" id="weight" min="1500" max="5500" step="1" required
+                            value="{{ weight if weight is not none else 2800.0 }}">
+                    </div>
+
+                    <div class="form-group range-group">
+                        <label for="acceleration">Acceleration <span class="unit">0-60 mph (sec)</span></label>
+                        <div class="slider-container">
+                            <input type="range" name="acceleration" id="acceleration" min="8.0" max="25.0" step="0.1"
+                                value="{{ acceleration if acceleration is not none else 15.5 }}"
+                                oninput="updateSliderVal('acceleration', this.value)">
+                            <span class="slider-value" id="accelerationVal">{{ acceleration if acceleration is not none
+                                else '15.5' }}</span>
+                        </div>
+                    </div>
+
+                    <div class="form-group range-group">
+                        <label for="model_year">Model Year <span class="unit">1970 - 1982</span></label>
+                        <div class="slider-container">
+                            <input type="range" name="model_year" id="model_year" min="70" max="82" step="1"
+                                value="{{ model_year if model_year is not none else 76 }}"
+                                oninput="updateSliderVal('model_year', this.value)">
+                            <span class="slider-value" id="model_yearVal">19{{ model_year if model_year is not none else
+                                '76' }}</span>
+                        </div>
+                    </div>
+
+                    <div class="form-group full-width">
+                        <label>Country of Origin</label>
+                        <div class="origin-selector">
+                            <div class="origin-option">
+                                <input type="radio" name="origin" id="origin_usa" value="usa" {% if origin=='usa' or not
+                                    origin %}checked{% endif %}>
+                                <label class="origin-label" for="origin_usa">USA</label>
+                            </div>
+                            <div class="origin-option">
+                                <input type="radio" name="origin" id="origin_europe" value="europe" {% if
+                                    origin=='europe' %}checked{% endif %}>
+                                <label class="origin-label" for="origin_europe">Europe</label>
+                            </div>
+                            <div class="origin-option">
+                                <input type="radio" name="origin" id="origin_japan" value="japan" {% if origin=='japan'
+                                    %}checked{% endif %}>
+                                <label class="origin-label" for="origin_japan">Japan</label>
+                            </div>
+                        </div>
+                    </div>
+
+                    <button type="submit" class="btn-predict">Predict MPG</button>
+                </form>
+            </div>
+
+            <!-- Results Card -->
+            <div class="card results-card" id="resultsCard">
+                {% if prediction_text %}
+                <!-- Dynamic rendering of predictor output -->
+                <div class="prediction-output">
+                    <div class="prediction-label">Estimated Efficiency</div>
+
+                    <div class="prediction-value-container">
+                        <span class="prediction-value" id="mpgValue">
+                            <!-- Will be filled by JS or directly parsed from backend -->
+                        </span>
+                    </div>
+
+                    <!-- Color-coded Gauge -->
+                    <div class="gauge-track">
+                        <div class="gauge-bar" id="gaugeBar"></div>
+                        <div class="gauge-pin" id="gaugePin"></div>
+                    </div>
+                    <div class="gauge-labels">
+                        <span>9 MPG (Low)</span>
+                        <span>47 MPG (High)</span>
+                    </div>
+
+                    <div>
+                        <span class="efficiency-badge" id="efficiencyBadge">Calculating...</span>
+                    </div>
+                </div>
+                {% elif error_text %}
+                <div class="error-container">
+                    <strong>System Error:</strong><br>
+                    {{ error_text }}
+                </div>
+                {% else %}
+                <!-- Empty State -->
+                <div class="empty-state">
+                    <div class="empty-state-icon">🚘</div>
+                    <h3>Ready to Estimate</h3>
+                    <p>Adjust the vehicle specifications and click "Predict MPG" to see the deep learning model
+                        estimation.</p>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+
+
+    </div>
+
+    <script>
+        // Preset vehicle data mapping
+        const presets = {
+            sedan: {
+                cylinders: 4,
+                displacement: 120.0,
+                horsepower: 90.0,
+                weight: 2480,
+                acceleration: 15.5,
+                model_year: 81,
+                origin: 'japan'
+            },
+            suv: {
+                cylinders: 8,
+                displacement: 350.0,
+                horsepower: 165.0,
+                weight: 4200,
+                acceleration: 12.0,
+                model_year: 73,
+                origin: 'usa'
+            },
+            sports: {
+                cylinders: 8,
+                displacement: 302.0,
+                horsepower: 140.0,
+                weight: 3200,
+                acceleration: 13.5,
+                model_year: 79,
+                origin: 'usa'
+            },
+            compact: {
+                cylinders: 4,
+                displacement: 97.0,
+                horsepower: 52.0,
+                weight: 1985,
+                acceleration: 21.5,
+                model_year: 80,
+                origin: 'europe'
+            }
+        };
+
+        // Populate form with preset values
+        function applyPreset(name) {
+            const data = presets[name];
+            if (!data) return;
+
+            document.getElementById('cylinders').value = data.cylinders;
+            document.getElementById('displacement').value = data.displacement;
+            document.getElementById('horsepower').value = data.horsepower;
+            document.getElementById('weight').value = data.weight;
+
+            document.getElementById('acceleration').value = data.acceleration;
+            updateSliderVal('acceleration', data.acceleration);
+
+            document.getElementById('model_year').value = data.model_year;
+            updateSliderVal('model_year', data.model_year);
+
+            // Origin radio buttons
+            document.getElementById('origin_' + data.origin).checked = true;
+        }
+
+        // Keep visual range slider text aligned with values
+        function updateSliderVal(id, value) {
+            const display = document.getElementById(id + 'Val');
+            if (id === 'model_year') {
+                display.innerText = '19' + value;
+            } else {
+                display.innerText = value;
+            }
+        }
+
+        // Initialize display stats
+        window.addEventListener('DOMContentLoaded', () => {
+            // Check if there is a prediction output to process
+            const predictionText = "{{ prediction_text }}";
+            if (predictionText) {
+                // Extract MPG value using regex from string "Predicted Fuel Efficiency: XX.XX MPG"
+                const match = predictionText.match(/Predicted Fuel Efficiency:\s*([0-9.]+)\s*MPG/i);
+                if (match && match[1]) {
+                    const mpg = parseFloat(match[1]);
+                    document.getElementById('mpgValue').innerHTML = `${mpg.toFixed(1)} <span class="unit-text">MPG</span>`;
+
+                    // Standard MPG Range: Min = 9.0, Max = 46.6
+                    const minMpg = 9.0;
+                    const maxMpg = 46.6;
+                    let percentage = ((mpg - minMpg) / (maxMpg - minMpg)) * 100;
+                    percentage = Math.max(0, Math.min(100, percentage)); // bound between 0% and 100%
+
+                    // Set colors and badge text based on MPG efficiency
+                    let color, rgb, category;
+                    if (mpg < 20) {
+                        color = 'var(--mpg-low)';
+                        rgb = '239, 68, 68';
+                        category = 'Low Efficiency';
+                    } else if (mpg < 32) {
+                        color = 'var(--mpg-mid)';
+                        rgb = '234, 179, 8';
+                        category = 'Moderate Efficiency';
+                    } else {
+                        color = 'var(--mpg-high)';
+                        rgb = '16, 185, 129';
+                        category = 'High Efficiency';
+                    }
+
+                    // Apply styles dynamically
+                    const gaugeBar = document.getElementById('gaugeBar');
+                    const gaugePin = document.getElementById('gaugePin');
+                    const badge = document.getElementById('efficiencyBadge');
+
+                    gaugeBar.style.width = `${percentage}%`;
+                    gaugeBar.style.setProperty('--gauge-color', color);
+                    gaugePin.style.left = `${percentage}%`;
+
+                    badge.style.setProperty('--gauge-color', color);
+                    badge.style.setProperty('--gauge-rgb', rgb);
+                    badge.innerText = category;
+                }
+            }
+        });
+    </script>
+</body>
+
+</html>
